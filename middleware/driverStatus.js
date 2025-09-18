@@ -36,6 +36,25 @@ exports.canAcceptBookings = async (req, res, next) => {
       });
     }
 
+    // Check driver operational status
+    if (driver.driverStatus === 'suspended') {
+      return res.status(403).json({ 
+        message: 'Cannot accept bookings. Your driver status is suspended. Please contact support.',
+        status: driver.status,
+        driverStatus: driver.driverStatus,
+        canAcceptBookings: false
+      });
+    }
+
+    if (driver.driverStatus === 'inactive') {
+      return res.status(403).json({ 
+        message: 'Cannot accept bookings. Your driver status is inactive. Please contact support.',
+        status: driver.status,
+        driverStatus: driver.driverStatus,
+        canAcceptBookings: false
+      });
+    }
+
     if (!driver.availability) {
       return res.status(403).json({ 
         message: 'Cannot accept bookings. You are currently offline. Please toggle your availability.',
@@ -91,6 +110,27 @@ exports.canBeAssigned = async (req, res, next) => {
         message: `Cannot assign booking to driver. Driver account has been suspended.`,
         driverId: driver.id,
         driverStatus: driver.status,
+        canBeAssigned: false
+      });
+    }
+
+    // Check driver operational status
+    if (driver.driverStatus === 'suspended') {
+      return res.status(403).json({ 
+        message: `Cannot assign booking to driver. Driver status is suspended.`,
+        driverId: driver.id,
+        status: driver.status,
+        driverStatus: driver.driverStatus,
+        canBeAssigned: false
+      });
+    }
+
+    if (driver.driverStatus === 'inactive') {
+      return res.status(403).json({ 
+        message: `Cannot assign booking to driver. Driver status is inactive.`,
+        driverId: driver.id,
+        status: driver.status,
+        driverStatus: driver.driverStatus,
         canBeAssigned: false
       });
     }

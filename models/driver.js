@@ -16,6 +16,8 @@ insuranceFile: { type: DataTypes.STRING },
 carPlate: { type: DataTypes.STRING },
 carModel: { type: DataTypes.STRING },
 carColor: { type: DataTypes.STRING },
+vehicleType: { type: DataTypes.ENUM('mini', 'sedan', 'van'), allowNull: true },
+carName: { type: DataTypes.STRING, allowNull: true },
 availability: { type: DataTypes.BOOLEAN, defaultValue: false },
 bankAccountNo: { type: DataTypes.STRING },
 verification: { type: DataTypes.BOOLEAN, defaultValue: false },
@@ -25,6 +27,7 @@ insuranceExpiry: { type: DataTypes.DATE, allowNull: true },
 emergencyContacts: { type: DataTypes.TEXT, allowNull: true },
   documentStatus: { type: DataTypes.STRING, allowNull: true },
   status: { type: DataTypes.ENUM('pending', 'approved', 'rejected'), defaultValue: 'pending', allowNull: false },
+  driverStatus: { type: DataTypes.ENUM('active', 'inactive', 'suspended'), defaultValue: 'inactive', allowNull: false },
 }, { defaultScope: { attributes: { exclude: ['password'] } }, tableName: 'drivers', underscored: true });
 return Driver;
 };

@@ -1,4 +1,4 @@
-﻿// sockets/index.js
+// sockets/index.js
 let ioRef;
 const jwt = require('jsonwebtoken');
 const geolib = require('geolib');
@@ -112,7 +112,7 @@ function attachSocketHandlers(io) {
         if (normalizedType === 'driver') {
           const driverDoc = await resolveDriverFromToken(decoded);
           const driverId = driverDoc ? String(driverDoc._id) : (decoded.id ? String(decoded.id) : undefined);
-          user = { type: 'driver', id: driverId, vehicleType: driverDoc?.vehicleType, name: driverDoc?.name || decoded.name, phone: driverDoc?.phone || (decoded.phone || decoded.phoneNumber || decoded.mobile) };
+          user = { type: 'driver', id: driverId, vehicleType: driverDoc?.vehicleType || decoded.vehicleType, carName: driverDoc?.carName || decoded.carName, driverStatus: driverDoc?.driverStatus || decoded.driverStatus, name: driverDoc?.name || decoded.name, phone: driverDoc?.phone || (decoded.phone || decoded.phoneNumber || decoded.mobile) };
           socket.user = user;
           if (driverId) {
             const room = `driver:${driverId}`;
@@ -261,6 +261,7 @@ function attachSocketHandlers(io) {
               name: authUser.name,
               phone: authUser.phone,
               vehicleType: authUser.vehicleType,
+              carName: authUser.carName,
             }
           }
         };
