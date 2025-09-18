@@ -4,6 +4,14 @@ const { hashPassword } = require('../utils/password');
 exports.create = async (req, res) => {
 try {
 const data = req.body;
+// Validate vehicle fields if provided
+const allowedVehicleTypes = new Set(['mini', 'sedan', 'van']);
+if (typeof data.vehicleType !== 'undefined' && data.vehicleType !== null && !allowedVehicleTypes.has(String(data.vehicleType))) {
+return res.status(400).json({ message: 'Invalid vehicleType. Allowed: mini, sedan, van' });
+}
+if (typeof data.carName !== 'undefined' && data.carName !== null && typeof data.carName !== 'string') {
+return res.status(400).json({ message: 'Invalid carName. Must be a string.' });
+}
 if (data.password) data.password = await hashPassword(data.password);
 const row = await models.Driver.create(data);
 return res.status(201).json(row);
@@ -16,8 +24,38 @@ try {
 const body = req.body || {};
 // Prevent updates to rating fields from admin route
 const data = { ...body };
+
+// Validate vehicleType if provided
+if (data.vehicleType && !['mini', 'sedan', 'van'].includes(data.vehicleType)) {
+  return res.status(400).json({ 
+    message: 'Invalid vehicleType. Must be one of: mini, sedan, van' 
+  });
+}
+
+// Validate carName if provided
+if (data.carName && (typeof data.carName !== 'string' || data.carName.trim().length === 0)) {
+  return res.status(400).json({ 
+    message: 'Invalid carName. Must be a non-empty string' 
+  });
+}
+
+// Validate driverStatus if provided
+if (data.driverStatus && !['active', 'inactive', 'suspended'].includes(data.driverStatus)) {
+  return res.status(400).json({ 
+    message: 'Invalid driverStatus. Must be one of: active, inactive, suspended' 
+  });
+}
+
 if ('rating' in data) delete data.rating;
 if ('ratingCount' in data) delete data.ratingCount;
+// Validate vehicle fields if provided
+const allowedVehicleTypes = new Set(['mini', 'sedan', 'van']);
+if (typeof data.vehicleType !== 'undefined' && data.vehicleType !== null && !allowedVehicleTypes.has(String(data.vehicleType))) {
+return res.status(400).json({ message: 'Invalid vehicleType. Allowed: mini, sedan, van' });
+}
+if (typeof data.carName !== 'undefined' && data.carName !== null && typeof data.carName !== 'string') {
+return res.status(400).json({ message: 'Invalid carName. Must be a string.' });
+}
 if (data.password) data.password = await hashPassword(data.password);
 const [count] = await models.Driver.update(data, { where: { id: req.params.id } });
 if (!count) return res.status(404).json({ message: 'Not found' });
@@ -41,12 +79,34 @@ exports.updateMyProfile = async (req, res) => {
 try {
 if (req.user.type !== 'driver') return res.status(403).json({ message: 'Only drivers can access this endpoint' });
 const data = { ...req.body };
+
+// Validate vehicleType if provided
+if (data.vehicleType && !['mini', 'sedan', 'van'].includes(data.vehicleType)) {
+  return res.status(400).json({ 
+    message: 'Invalid vehicleType. Must be one of: mini, sedan, van' 
+  });
+}
+
+// Validate carName if provided
+if (data.carName && (typeof data.carName !== 'string' || data.carName.trim().length === 0)) {
+  return res.status(400).json({ 
+    message: 'Invalid carName. Must be a non-empty string' 
+  });
+}
 // Prevent self-updating rating fields and status
 if ('rating' in data) delete data.rating;
 if ('ratingCount' in data) delete data.ratingCount;
 if ('status' in data) delete data.status;
 if ('verification' in data) return res.status(403).json({ message: 'Forbidden' });
 if ('documentStatus' in data) return res.status(403).json({ message: 'Forbidden' });
+// Validate vehicle fields if provided
+const allowedVehicleTypes = new Set(['mini', 'sedan', 'van']);
+if (typeof data.vehicleType !== 'undefined' && data.vehicleType !== null && !allowedVehicleTypes.has(String(data.vehicleType))) {
+return res.status(400).json({ message: 'Invalid vehicleType. Allowed: mini, sedan, van' });
+}
+if (typeof data.carName !== 'undefined' && data.carName !== null && typeof data.carName !== 'string') {
+return res.status(400).json({ message: 'Invalid carName. Must be a string.' });
+}
 if (data.password) data.password = await hashPassword(data.password);
 const [count] = await models.Driver.update(data, { where: { id: req.user.id } });
 if (!count) return res.status(404).json({ message: 'Driver not found' });
@@ -74,12 +134,25 @@ if (driver.status === 'suspended') {
   });
 }
 
+if (driver.driverStatus === 'suspended') {
+  return res.status(403).json({ 
+    message: 'Cannot change availability. Your driver status is suspended. Please contact support.' 
+  });
+}
+
+if (driver.driverStatus === 'inactive') {
+  return res.status(403).json({ 
+    message: 'Cannot change availability. Your driver status is inactive. Please contact support.' 
+  });
+}
+
 driver.availability = !driver.availability;
 await driver.save();
 return res.json({ 
   message: 'Availability updated', 
   availability: driver.availability,
-  status: driver.status 
+  status: driver.status,
+  driverStatus: driver.driverStatus 
 });
 } catch (e) { return res.status(500).json({ message: e.message }); }
 };
@@ -90,21 +163,32 @@ if (req.user.type !== 'driver') return res.status(403).json({ message: 'Only dri
 const driver = await models.Driver.findByPk(req.user.id);
 if (!driver) return res.status(404).json({ message: 'Driver not found' });
 
-const eligible = driver.status === 'approved' || driver.documentStatus === 'approved';
+const approvalEligible = driver.status === 'approved' || driver.documentStatus === 'approved';
+const statusEligible = driver.driverStatus === 'active';
+const eligible = approvalEligible && statusEligible;
+
 if (!eligible) {
   const required = ['carPlate','carModel','carColor','document','nationalIdFile','vehicleRegistrationFile','insuranceFile'];
   const missing = required.filter((k) => driver[k] == null || driver[k] === '');
   const docState = driver.documentStatus || 'not submitted';
-  const reason = driver.status !== 'approved'
-    ? `Account status is '${driver.status}'. Approval required.`
-    : `Driver documents are '${docState}'. Approval required.`;
+  
+  let reason;
+  if (!approvalEligible) {
+    reason = driver.status !== 'approved'
+      ? `Account status is '${driver.status}'. Approval required.`
+      : `Driver documents are '${docState}'. Approval required.`;
+  } else if (!statusEligible) {
+    reason = `Driver status is '${driver.driverStatus}'. Active status required to accept bookings.`;
+  }
+  
   return res.status(403).json({
     message: reason,
     status: driver.status,
+    driverStatus: driver.driverStatus,
     missing
   });
 }
-return res.json({ canAcceptBookings: true, status: driver.status});
+return res.json({ canAcceptBookings: true, status: driver.status, driverStatus: driver.driverStatus });
 } catch (e) { return res.status(500).json({ message: e.message }); }
 };
 

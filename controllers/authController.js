@@ -19,8 +19,12 @@ function buildBasicClaims(entity, type) {
       if (entity.name) claims.name = entity.name;
       if (entity.phone) claims.phone = entity.phone;
       if (entity.email) claims.email = entity.email;
+      if (typeof entity.id !== 'undefined') claims.driverId = entity.id;
       if (typeof entity.status !== 'undefined') claims.status = entity.status;
       if (typeof entity.documentStatus !== 'undefined') claims.documentStatus = entity.documentStatus;
+      if (typeof entity.driverStatus !== 'undefined') claims.driverStatus = entity.driverStatus;
+      if (typeof entity.vehicleType !== 'undefined') claims.vehicleType = entity.vehicleType;
+      if (typeof entity.carName !== 'undefined') claims.carName = entity.carName;
     } else if (type === 'staff') {
       if (entity.fullName) claims.name = entity.fullName;
       if (entity.username) claims.username = entity.username;
@@ -94,15 +98,31 @@ exports.loginPassenger = async (req, res) => {
 /* ========================= DRIVER ========================= */
 exports.registerDriver = async (req, res) => {
   try {
-    const { name, phone, email, password } = req.body;
+    const { name, phone, email, password, vehicleType, carName } = req.body;
+    
+    // Validate vehicleType if provided
+    if (vehicleType && !['mini', 'sedan', 'van'].includes(vehicleType)) {
+      return res.status(400).json({ 
+        message: 'Invalid vehicleType. Must be one of: mini, sedan, van' 
+      });
+    }
+    
+    // Validate carName if provided
+    if (carName && (typeof carName !== 'string' || carName.trim().length === 0)) {
+      return res.status(400).json({ 
+        message: 'Invalid carName. Must be a non-empty string' 
+      });
+    }
+    
     const exists = await models.Driver.findOne({ where: { phone } });
     if (exists) return res.status(409).json({ message: 'Phone already registered' });
 
     const hashed = await hashPassword(password);
-    const driver = await models.Driver.create({ name, phone, email, password: hashed });
+    const driver = await models.Driver.create({ name, phone, email, password: hashed, vehicleType, carName });
 
     const token = sign({
       id: driver.id,
+      driverId: driver.id,
       type: 'driver',
       ...buildBasicClaims(driver, 'driver'),
     });
@@ -136,9 +156,10 @@ exports.loginDriver = async (req, res) => {
 
       driver.verification = true;
       if (driver.status === 'pending') driver.status = 'active';
+      if (driver.driverStatus !== 'active') driver.driverStatus = 'active';
       await driver.save();
 
-      const token = sign({ id: driver.id, type: 'driver', ...buildBasicClaims(driver, 'driver') });
+      const token = sign({ id: driver.id, driverId: driver.id, type: 'driver', ...buildBasicClaims(driver, 'driver') });
       return res.json({ token, driver });
     }
 
@@ -150,7 +171,7 @@ exports.loginDriver = async (req, res) => {
       const ok = await comparePassword(password, driver.password);
       if (!ok) return res.status(401).json({ message: 'Invalid credentials' });
 
-      const token = sign({ id: driver.id, type: 'driver', ...buildBasicClaims(driver, 'driver') });
+      const token = sign({ id: driver.id, driverId: driver.id, type: 'driver', ...buildBasicClaims(driver, 'driver') });
       const { password: _pw, ...safeDriver } = driver.toJSON ? driver.toJSON() : driver;
       return res.json({ token, driver: safeDriver });
     }
@@ -201,9 +222,10 @@ exports.verifyDriverOtp = async (req, res) => {
 
     driver.verification = true;
     if (driver.status === 'pending') driver.status = 'active';
+    if (driver.driverStatus !== 'active') driver.driverStatus = 'active';
     await driver.save();
 
-    const token = sign({ id: driver.id, type: 'driver', ...buildBasicClaims(driver, 'driver') });
+    const token = sign({ id: driver.id, driverId: driver.id, type: 'driver', ...buildBasicClaims(driver, 'driver') });
     return res.status(200).json({ message: 'OTP verified successfully', driver, token });
   } catch (e) {
     return res.status(500).json({ message: e.message });
